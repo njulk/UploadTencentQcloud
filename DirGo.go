@@ -153,14 +153,17 @@ func (cos *COS) uploadAllfiles(allFiles []string, alreadyDirs map[string]string)
 		if errRet != nil {
 			return errRet
 		}
-		file += ".gz"
+		gzfile := file + ".gz"
+		//file += ".gz"
 		filepath += ".gz"
-		cos.uploadFile(file, filepath)
-		errRet = os.Remove(file)
+		cos.uploadFile(gzfile, filepath)
+		recordFile(file, filepath)
+		errRet = os.Remove(gzfile)
 		if errRet != nil {
 			fmt.Println(errRet.Error())
 		}
 	}
+	cos.uploadFile("record.txt", "/record.txt")
 	return
 }
 
