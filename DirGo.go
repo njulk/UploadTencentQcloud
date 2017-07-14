@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/bitly/go-simplejson"
 )
 
 //创建目录
-func (cos *COS) createDir(filepath string) string {
+func (cos *COS) createDir(filepath string) (result string, errRet error) {
 	url := cos.generateurl(filepath)
 	sign, _ := cos.createSignature(filepath, false)
 	var dir = make(map[string]string)
@@ -19,12 +20,18 @@ func (cos *COS) createDir(filepath string) string {
 	dir["biz_attr"] = ""
 	postdata, errRet := json.Marshal(dir)
 	if errRet != nil {
-		fmt.Println("request body error")
+		fmt.Println(errRet.Error())
+		return
 	}
 	buffer := bytes.NewBuffer(postdata)
 	var contenttype string = "application/json"
-	result, errRet := cos.httppost(url, sign, contenttype, buffer)
-	return string(result)
+	tmpresult, errRet := cos.httppost(url, sign, contenttype, buffer)
+	result = string(tmpresult)
+	if errRet != nil {
+		fmt.Println(errRet.Error())
+		//return
+	}
+	return
 }
 
 //列出当前bucket中已经存在的目录
@@ -33,15 +40,24 @@ func (cos *COS) queryDir(rootDir string) (result []byte, subdirs []string, errRe
 	var para string
 	para = "?op=list&num=100"
 	url += para
-	sign, _ := cos.createSignature(rootDir, false)
-	result, err := cos.httpget(url, sign)
-	if err != nil {
-		errRet = fmt.Errorf("%s", err.Error())
+	sign, errRet := cos.createSignature(rootDir, false)
+	if errRet != nil {
+		return
 	}
-	//fmt.Println(string(result))
-	jsonbody, _ := simplejson.NewJson(result)
-	jsondata, _ := jsonbody.Get("data").Get("infos").Array()
-
+	result, errRet = cos.httpget(url, sign)
+	if errRet != nil {
+		return
+	}
+	jsonbody, errRet := simplejson.NewJson(result)
+	if errRet != nil {
+		fmt.Println(errRet.Error())
+		return
+	}
+	jsondata, errRet := jsonbody.Get("data").Get("infos").Array()
+	if errRet != nil {
+		fmt.Println(errRet.Error())
+		return
+	}
 	for _, di := range jsondata {
 		newbody, _ := di.(map[string]interface{})
 		filesize := newbody["filesize"]
@@ -62,18 +78,19 @@ func (cos *COS) queryDir(rootDir string) (result []byte, subdirs []string, errRe
 }
 
 //列出当前文件夹下的所有目录和文件
-func ListDir(dirpath string, selectSubdir bool) (files, dirs []string, err error) {
-	dir, err := ioutil.ReadDir(dirpath)
-	if err != nil {
+func ListDir(dirpath string, selectSubdir bool) (files, dirs []string, errRet error) {
+	dir, errRet := ioutil.ReadDir(dirpath)
+	if errRet != nil {
 		_, errRet := ioutil.ReadFile(dirpath)
 		if errRet != nil {
+			fmt.Println(errRet.Error())
 			return nil, nil, errRet
 		}
 		files = []string{dirpath}
-		return files, nil, err
+		return files, nil, nil
 	}
-	//PathSep := string(os.PathSeparator)
-	PathSep := "/"
+	PathSep := string(os.PathSeparator)
+	//PathSep := "/"
 	for _, fi := range dir {
 		if fi.IsDir() {
 			dirs = append(dirs, dirpath+fi.Name()+PathSep)
@@ -82,12 +99,8 @@ func ListDir(dirpath string, selectSubdir bool) (files, dirs []string, err error
 		}
 	}
 	if selectSubdir {
-		//fmt.Println(dirs)
 		for _, fi := range dirs {
-			//fmt.Println(fi)
 			subfiles, subdirs, _ := ListDir(fi, true)
-			//fmt.Println(subfiles)
-			//fmt.Println(subdirs)
 			for _, tmpfiles := range subfiles {
 				files = append(files, tmpfiles)
 			}
@@ -99,36 +112,52 @@ func ListDir(dirpath string, selectSubdir bool) (files, dirs []string, err error
 	return
 }
 
-func extractDir(file string) (result string) {
-	i := strings.Split(file, "/")
-	if len(i) <= 2 {
-		return "/"
+func extractDir(file string) (filedir string, filepath string) {
+	PathSep := string(os.PathSeparator)
+	i := strings.Split(file, PathSep)
+	if len(i) <= 1 {
+		return
+	}
+	if len(i) == 2 {
+		return "/", "/" + i[1]
 	}
 	for x := 1; x < (len(i) - 1); x++ {
-		result += "/" + i[x]
+		filedir += "/" + i[x]
+		filepath += "/" + i[x]
 	}
-	return result
+	filedir += "/"
+	filepath += "/" + i[len(i)-1]
+	return
 }
 
-func (cos *COS) uploadAllfiles(allFiles []string, alreadyDirs map[string]string) {
+func (cos *COS) uploadAllfiles(allFiles []string, alreadyDirs map[string]string) (errRet error) {
 	for _, file := range allFiles {
-		fileDir := extractDir(file)
+		fileDir, filepath := extractDir(file)
+		//fmt.Println(fileDir)
 		if _, ok := alreadyDirs[fileDir]; !ok {
-			cos.createDir(fileDir)
+			//fmt.Println(fileDir)
+			_, errRet = cos.createDir(fileDir)
+			if errRet != nil {
+				return
+			}
+		} else {
+			alreadyDirs[fileDir] = "ok"
 		}
-		cos.uploadFile(file, file)
+		cos.uploadFile(file, filepath)
 	}
+	return
 }
 
 func (cos *COS) uploadFromlocal(filedir string, selectSubdir bool) {
-	files, _, _ := ListDir(filedir, selectSubdir)
-	_, subdirs, _ := cos.queryDir("/")
+	files, _, _ := ListDir(filedir, true)
 	//fmt.Println(files)
-	//fmt.Println(dirs)
-	//fmt.Println(subdirs)
+	_, subdirs, _ := cos.queryDir("/")
 	alreadyDirs := make(map[string]string)
+	//fmt.Println(subdirs)
 	for i := 0; i < len(subdirs); i++ {
 		alreadyDirs[subdirs[i]] = "ok"
 	}
 	cos.uploadAllfiles(files, alreadyDirs)
+	_, subdirs, _ = cos.queryDir("/")
+	//fmt.Println(subdirs)
 }

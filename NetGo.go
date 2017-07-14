@@ -13,6 +13,7 @@ func (cos *COS) httppost(url, sign, contenttype string, buffer *bytes.Buffer) (r
 	req, err := http.NewRequest("POST", url, buffer)
 	if err != nil {
 		errRet = fmt.Errorf("http请求失败，message:%s", err.Error())
+		fmt.Println(errRet.Error())
 		return
 	}
 	req.Header.Set("Content-Type", contenttype)
@@ -22,12 +23,15 @@ func (cos *COS) httppost(url, sign, contenttype string, buffer *bytes.Buffer) (r
 	resp, err := client.Do(req)
 	if err != nil {
 		errRet = fmt.Errorf("http请求失败，message：%s", err.Error())
+		fmt.Println(errRet.Error())
 		return
 	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		errRet = fmt.Errorf("http读取失败，message:%s", err.Error())
+		fmt.Println(errRet.Error())
+		return
 	}
 	return body, errRet
 }
@@ -37,6 +41,7 @@ func (cos *COS) httpget(url, sign string) (result []byte, errRet error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		errRet = fmt.Errorf("http请求失败，message:%s", err.Error())
+		fmt.Println(errRet.Error())
 		return
 	}
 	req.Header.Set("Authorization", sign)
@@ -44,12 +49,15 @@ func (cos *COS) httpget(url, sign string) (result []byte, errRet error) {
 	resp, err := client.Do(req)
 	if err != nil {
 		errRet = fmt.Errorf("http请求失败，message：%s", err.Error())
+		fmt.Println(errRet.Error())
 		return
 	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		errRet = fmt.Errorf("http读取失败，message:%s", err.Error())
+		fmt.Println(errRet.Error())
+		return
 	}
 	return body, errRet
 

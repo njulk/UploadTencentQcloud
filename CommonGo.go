@@ -72,9 +72,12 @@ func (cos *COS) createSignature(filePath string, singleUse bool) (sign string, e
 	result = fmt.Sprintf("a=%s&b=%s&k=%s&e=%d&t=%d&r=%d&f=%s", cos.appid, cos.bucket, cos.secretId, expiration, cur, rand.Int(), fileId)
 	//fmt.Println(result)
 	mac := hmac.New(sha1.New, []byte(cos.secretKey))
-	mac.Write([]byte(result))
+	_, err = mac.Write([]byte(result))
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
 	tmp := mac.Sum(nil)
-	var signTmp string
-	signTmp = base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s%s", string(tmp), result)))
-	return signTmp, err
+	sign = base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s%s", string(tmp), result)))
+	return sign, err
 }
