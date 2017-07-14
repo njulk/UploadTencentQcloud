@@ -77,6 +77,12 @@ func (cos *COS) queryDir(rootDir string) (result []byte, subdirs []string, errRe
 	return
 }
 
+//判断当前目录是否存在，存在返回true，不存在返回false
+func Exist(filename string) bool {
+	_, err := os.Stat(filename)
+	return err == nil || os.IsExist(err)
+}
+
 //列出当前文件夹下的所有目录和文件
 func ListDir(dirpath string, selectSubdir bool) (files, dirs []string, errRet error) {
 	dir, errRet := ioutil.ReadDir(dirpath)
@@ -143,12 +149,26 @@ func (cos *COS) uploadAllfiles(allFiles []string, alreadyDirs map[string]string)
 		} else {
 			alreadyDirs[fileDir] = "ok"
 		}
+		_, errRet = Compress(file)
+		if errRet != nil {
+			return errRet
+		}
+		file += ".gz"
+		filepath += ".gz"
 		cos.uploadFile(file, filepath)
+		errRet = os.Remove(file)
+		if errRet != nil {
+			fmt.Println(errRet.Error())
+		}
 	}
 	return
 }
 
 func (cos *COS) uploadFromlocal(filedir string, selectSubdir bool) {
+	if !Exist(filedir) {
+		fmt.Println("%s：文件不存在", filedir)
+		return
+	}
 	files, _, _ := ListDir(filedir, true)
 	//fmt.Println(files)
 	_, subdirs, _ := cos.queryDir("/")
