@@ -25,7 +25,7 @@ func (cos *COS) createDir(filepath string) (result string, errRet error) {
 	}
 	buffer := bytes.NewBuffer(postdata)
 	var contenttype string = "application/json"
-	tmpresult, errRet := httppost(url, sign, contenttype, buffer)
+	tmpresult, errRet := cos.httppost(url, sign, contenttype, buffer)
 	result = string(tmpresult)
 	if errRet != nil {
 		fmt.Println(errRet.Error())
@@ -44,7 +44,7 @@ func (cos *COS) queryDir(rootDir string) (result []byte, subdirs []string, errRe
 	if errRet != nil {
 		return
 	}
-	result, errRet = httpget(url, sign)
+	result, errRet = cos.httpget(url, sign)
 	if errRet != nil {
 		return
 	}
@@ -139,7 +139,9 @@ func extractDir(file string) (filedir string, filepath string) {
 func (cos *COS) uploadAllfiles(allFiles []string, alreadyDirs map[string]string) (errRet error) {
 	for _, file := range allFiles {
 		fileDir, filepath := extractDir(file)
+		//fmt.Println(fileDir)
 		if _, ok := alreadyDirs[fileDir]; !ok {
+			//fmt.Println(fileDir)
 			_, errRet = cos.createDir(fileDir)
 			if errRet != nil {
 				return
@@ -152,12 +154,9 @@ func (cos *COS) uploadAllfiles(allFiles []string, alreadyDirs map[string]string)
 			return errRet
 		}
 		gzfile := file + ".gz"
+		//file += ".gz"
 		filepath += ".gz"
-		errRet = cos.uploadFile(gzfile, filepath)
-		if errRet != nil {
-			fmt.Println(errRet.Error())
-			return
-		}
+		cos.uploadFile(gzfile, filepath)
 		recordFile(file, filepath)
 		errRet = os.Remove(gzfile)
 		if errRet != nil {
@@ -168,22 +167,22 @@ func (cos *COS) uploadAllfiles(allFiles []string, alreadyDirs map[string]string)
 	return
 }
 
-func (cos *COS) uploadFromlocal(filedir string, selectSubdir bool) (errRet error) {
+func (cos *COS) uploadFromlocal(filedir string, selectSubdir bool) {
 
+	/*if !Exist(filedir) {
+		fmt.Println("%s：文件不存在", filedir)
+		return
+	}
+	files, _, _ := ListDir(filedir, true)*/
 	files, err := matchPath(filedir, selectSubdir)
 	if err != nil {
-		errRet = fmt.Errorf("%s", err)
 		return
 	}
-	_, subdirs, errRet := cos.queryDir("/")
-	if errRet != nil {
-		return
-	}
+	_, subdirs, _ := cos.queryDir("/")
 	alreadyDirs := make(map[string]string)
 	for i := 0; i < len(subdirs); i++ {
 		alreadyDirs[subdirs[i]] = "ok"
 	}
-	errRet = cos.uploadAllfiles(files, alreadyDirs)
-	return
-	//_, subdirs, _ = cos.queryDir("/")
+	cos.uploadAllfiles(files, alreadyDirs)
+	_, subdirs, _ = cos.queryDir("/")
 }
