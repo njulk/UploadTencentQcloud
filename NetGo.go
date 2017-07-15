@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func (cos *COS) httppost(url, sign, contenttype string, buffer *bytes.Buffer) (result []byte, errRet error) {
+func httppost(url, sign, contenttype string, buffer *bytes.Buffer) (result []byte, errRet error) {
 	var timeout = time.Duration(60 * 60 * time.Second)
 	req, err := http.NewRequest("POST", url, buffer)
 	if err != nil {
@@ -36,7 +36,7 @@ func (cos *COS) httppost(url, sign, contenttype string, buffer *bytes.Buffer) (r
 	return body, errRet
 }
 
-func (cos *COS) httpget(url, sign string) (result []byte, errRet error) {
+func httpget(url, sign string) (result []byte, errRet error) {
 	var timeout = time.Duration(60 * 60 * time.Second)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
