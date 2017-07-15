@@ -168,19 +168,21 @@ func (cos *COS) uploadAllfiles(allFiles []string, alreadyDirs map[string]string)
 }
 
 func (cos *COS) uploadFromlocal(filedir string, selectSubdir bool) {
-	if !Exist(filedir) {
+
+	/*if !Exist(filedir) {
 		fmt.Println("%s：文件不存在", filedir)
 		return
 	}
-	files, _, _ := ListDir(filedir, true)
-	//fmt.Println(files)
+	files, _, _ := ListDir(filedir, true)*/
+	files, err := matchPath(filedir, selectSubdir)
+	if err != nil {
+		return
+	}
 	_, subdirs, _ := cos.queryDir("/")
 	alreadyDirs := make(map[string]string)
-	//fmt.Println(subdirs)
 	for i := 0; i < len(subdirs); i++ {
 		alreadyDirs[subdirs[i]] = "ok"
 	}
 	cos.uploadAllfiles(files, alreadyDirs)
 	_, subdirs, _ = cos.queryDir("/")
-	//fmt.Println(subdirs)
 }

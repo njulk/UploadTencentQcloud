@@ -51,5 +51,4 @@ func getPara(configName string) (paras map[string]string, errRet error) {
 		}
 	}
 	return
-
 }

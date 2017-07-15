@@ -18,4 +18,6 @@ func main() {
 	objectcos.secretKey = paras["secretKey"]
 	objectcos.region = paras["region"]
 	objectcos.uploadFromlocal(paras["localPath"], true)
+	//matchPath(paras["localPath"], true)
+
 }

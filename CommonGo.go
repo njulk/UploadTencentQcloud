@@ -85,20 +85,21 @@ func (cos *COS) createSignature(filePath string, singleUse bool) (sign string, e
 
 func recordFile(localfile string, cosfile string) (errRet error) {
 	var record *os.File
-	record, errRet = os.OpenFile("record.txt", os.O_APPEND, os.ModeAppend)
+	record, errRet = os.OpenFile("record.txt", os.O_APPEND|os.O_WRONLY, os.ModeAppend)
 	if errRet != nil {
 		record, errRet = os.Create("record.txt")
 		if errRet != nil {
 			fmt.Println(errRet.Error())
 			return
 		}
-		defer record.Close()
 		_, errRet = record.WriteString("localfile" + "                       " + "cosfile" + "\r\n")
 		if errRet != nil {
+			record.Close()
 			fmt.Println(errRet.Error())
 			return
 		}
 	}
+	defer record.Close()
 	result := localfile + "                " + cosfile + "\r\n"
 	_, errRet = record.WriteString(result)
 	if errRet != nil {
