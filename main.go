@@ -1,23 +1,12 @@
 package main
 
-/*import (
+import (
 	"fmt"
-)*/
+)
 
 func main() {
-
-	var configureName string = "config.ini"
-	paras, err := getPara(configureName)
+	err := start()
 	if err != nil {
-		return
+		fmt.Println("执行失败:%s", err.Error())
 	}
-	var objectcos *COS = new(COS)
-	objectcos.appid = paras["appid"]
-	objectcos.bucket = paras["bucket"]
-	objectcos.secretId = paras["secretId"]
-	objectcos.secretKey = paras["secretKey"]
-	objectcos.region = paras["region"]
-	objectcos.uploadFromlocal(paras["localPath"], true)
-	//matchPath(paras["localPath"], true)
-
 }

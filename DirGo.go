@@ -1,87 +1,11 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
-
-	"github.com/bitly/go-simplejson"
 )
-
-//创建目录
-func (cos *COS) createDir(filepath string) (result string, errRet error) {
-	url := cos.generateurl(filepath)
-	sign, _ := cos.createSignature(filepath, false)
-	var dir = make(map[string]string)
-	dir["op"] = "create"
-	dir["biz_attr"] = ""
-	postdata, errRet := json.Marshal(dir)
-	if errRet != nil {
-		fmt.Println(errRet.Error())
-		return
-	}
-	buffer := bytes.NewBuffer(postdata)
-	var contenttype string = "application/json"
-	tmpresult, errRet := httppost(url, sign, contenttype, buffer)
-	result = string(tmpresult)
-	if errRet != nil {
-		fmt.Println(errRet.Error())
-		//return
-	}
-	return
-}
-
-//列出当前bucket中已经存在的目录
-func (cos *COS) queryDir(rootDir string) (result []byte, subdirs []string, errRet error) {
-	url := cos.generateurl(rootDir)
-	var para string
-	para = "?op=list&num=100"
-	url += para
-	sign, errRet := cos.createSignature(rootDir, false)
-	if errRet != nil {
-		return
-	}
-	result, errRet = httpget(url, sign)
-	if errRet != nil {
-		return
-	}
-	jsonbody, errRet := simplejson.NewJson(result)
-	if errRet != nil {
-		fmt.Println(errRet.Error())
-		return
-	}
-	jsondata, errRet := jsonbody.Get("data").Get("infos").Array()
-	if errRet != nil {
-		fmt.Println(errRet.Error())
-		return
-	}
-	for _, di := range jsondata {
-		newbody, _ := di.(map[string]interface{})
-		filesize := newbody["filesize"]
-		filedir := newbody["name"]
-		if filesize == nil {
-			t := filedir.(string)
-			subdirs = append(subdirs, rootDir+t)
-			continue
-		}
-	}
-	for _, v := range subdirs {
-		_, subsubdirs, _ := cos.queryDir(v)
-		for _, subv := range subsubdirs {
-			subdirs = append(subdirs, subv)
-		}
-	}
-	return
-}
-
-//判断当前目录是否存在，存在返回true，不存在返回false
-func Exist(filename string) bool {
-	_, err := os.Stat(filename)
-	return err == nil || os.IsExist(err)
-}
 
 //列出当前文件夹下的所有目录和文件
 func ListDir(dirpath string, selectSubdir bool) (files, dirs []string, errRet error) {
@@ -89,14 +13,14 @@ func ListDir(dirpath string, selectSubdir bool) (files, dirs []string, errRet er
 	if errRet != nil {
 		_, errRet := ioutil.ReadFile(dirpath)
 		if errRet != nil {
-			fmt.Println(errRet.Error())
+			//fmt.Println(errRet.Error())
+			log.Error("路径:%s既不是目录也不是文件\r\n", errRet.Error())
 			return nil, nil, errRet
 		}
 		files = []string{dirpath}
 		return files, nil, nil
 	}
 	PathSep := string(os.PathSeparator)
-	//PathSep := "/"
 	for _, fi := range dir {
 		if fi.IsDir() {
 			dirs = append(dirs, dirpath+fi.Name()+PathSep)
@@ -118,6 +42,7 @@ func ListDir(dirpath string, selectSubdir bool) (files, dirs []string, errRet er
 	return
 }
 
+//根据本地文件路径得出COS文件路径以及COS文件上层目录路径
 func extractDir(file string) (filedir string, filepath string) {
 	PathSep := string(os.PathSeparator)
 	i := strings.Split(file, PathSep)
@@ -136,62 +61,42 @@ func extractDir(file string) (filedir string, filepath string) {
 	return
 }
 
-func (cos *COS) uploadAllfiles(allFiles []string, alreadyDirs map[string]string) (errRet error) {
+//上传所有文件（根据一个所有文件的string数组）
+func (cos *COS) uploadAllfiles(allFiles []string, recordfile string) (errRet error) {
 
-	data, errRet := getRecordData("record.txt")
+	recordData, errRet = getRecordData(recordfile)
 	if errRet != nil {
+		errRet = fmt.Errorf("获取记录失败%s", errRet.Error())
+		log.Error("%s\r\n", errRet.Error())
 		return
 	}
-	for _, file := range allFiles {
-		fileDir, filepath := extractDir(file)
-		if _, ok := alreadyDirs[fileDir]; !ok {
-			_, errRet = cos.createDir(fileDir)
-			if errRet != nil {
-				return
-			}
-		} else {
-			alreadyDirs[fileDir] = "ok"
-		}
-		_, errRet = Compress(file)
-		if errRet != nil {
-			return errRet
-		}
-		gzfile := file + ".gz"
-		filepath += ".gz"
-		errRet = cos.uploadFile(gzfile, filepath)
-		if errRet != nil {
-			fmt.Println(errRet.Error())
-			return
-		}
-		data, errRet = recordFile(file, filepath, data)
-		if errRet != nil {
-			return
-		}
-		errRet = os.Remove(gzfile)
-		if errRet != nil {
-			fmt.Println(errRet.Error())
-		}
+	if len(allFiles) > 5 {
+		cos.startwork(5, allFiles)
+	} else {
+		cos.startwork(len(allFiles), allFiles)
 	}
-	cos.uploadFile("record.txt", "/record.txt")
+	cosRecord := "/" + recordfile
+	cos.uploadFile(recordfile, cosRecord)
 	return
 }
 
-func (cos *COS) uploadFromlocal(filedir string, selectSubdir bool) (errRet error) {
+//总的上传所有文件（根据本地目录）
+func (cos *COS) uploadFromlocal(filedir string, selectSubdir bool, recordfile string) (errRet error) {
 
 	files, err := matchPath(filedir, selectSubdir)
+	//fmt.Println(files)
 	if err != nil {
-		errRet = fmt.Errorf("%s", err)
+		errRet = fmt.Errorf("匹配失败%s", err.Error())
+		log.Error("%s\r\n", errRet.Error())
 		return
 	}
-	_, subdirs, errRet := cos.queryDir("/")
+	if len(files) == 0 {
+		return
+	}
+	errRet = cos.uploadAllfiles(files, recordfile)
 	if errRet != nil {
+		log.Error("%s\r\n", errRet.Error())
 		return
 	}
-	alreadyDirs := make(map[string]string)
-	for i := 0; i < len(subdirs); i++ {
-		alreadyDirs[subdirs[i]] = "ok"
-	}
-	errRet = cos.uploadAllfiles(files, alreadyDirs)
 	return
-	//_, subdirs, _ = cos.queryDir("/")
 }
