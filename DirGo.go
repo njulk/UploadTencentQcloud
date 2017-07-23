@@ -8,17 +8,12 @@ import (
 )
 
 //列出当前文件夹下的所有目录和文件
-func ListDir(dirpath string, selectSubdir bool) (files, dirs []string, errRet error) {
+func ListDir(configurename string, dirpath string, selectSubdir bool) (files, dirs []string, errRet error) {
 	dir, errRet := ioutil.ReadDir(dirpath)
 	if errRet != nil {
-		_, errRet := ioutil.ReadFile(dirpath)
-		if errRet != nil {
-			//fmt.Println(errRet.Error())
-			log.Error("路径:%s既不是目录也不是文件\r\n", errRet.Error())
-			return nil, nil, errRet
-		}
-		files = []string{dirpath}
-		return files, nil, nil
+		errRet = fmt.Errorf("读取目录时%s出现问题:%s", dirpath, errRet.Error())
+		log.Error("配置文件%s:读取目录%s出现错误:%s\r\n", configurename, dirpath, errRet.Error())
+		return
 	}
 	PathSep := string(os.PathSeparator)
 	for _, fi := range dir {
@@ -30,7 +25,12 @@ func ListDir(dirpath string, selectSubdir bool) (files, dirs []string, errRet er
 	}
 	if selectSubdir {
 		for _, fi := range dirs {
-			subfiles, subdirs, _ := ListDir(fi, true)
+			subfiles, subdirs, err := ListDir(configurename, fi, true)
+			if err != nil {
+				log.Error("配置文件%s:%s\r\n", configurename, err.Error())
+				errRet = err
+				return
+			}
 			for _, tmpfiles := range subfiles {
 				files = append(files, tmpfiles)
 			}
@@ -42,60 +42,72 @@ func ListDir(dirpath string, selectSubdir bool) (files, dirs []string, errRet er
 	return
 }
 
-//根据本地文件路径得出COS文件路径以及COS文件上层目录路径
-func extractDir(file string) (filedir string, filepath string) {
+//根据本地gz文件路径得出COS文件路径
+func (cos *COS) extractDir(configurename string, localFile string) (filename string, errRet error) {
+	if localFile == "" {
+		errRet = fmt.Errorf("%s", "提取文件名出错，文件路径名空")
+		log.Error("%s:提取文件名出错，文件路径名空\r\n", configurename)
+		return filename, errRet
+	}
 	PathSep := string(os.PathSeparator)
-	i := strings.Split(file, PathSep)
-	if len(i) <= 1 {
+	arrayFile := strings.Split(localFile, PathSep)
+	filename = cos.uploadDir
+	if len(arrayFile) == 1 {
+		filename += "/" + arrayFile[0]
 		return
 	}
-	if len(i) == 2 {
-		return "/", "/" + i[1]
+	if len(arrayFile) >= 2 {
+		for i := 1; i < len(arrayFile); i++ {
+			filename += "/" + arrayFile[i]
+		}
 	}
-	for x := 1; x < (len(i) - 1); x++ {
-		filedir += "/" + i[x]
-		filepath += "/" + i[x]
-	}
-	filedir += "/"
-	filepath += "/" + i[len(i)-1]
 	return
 }
 
 //上传所有文件（根据一个所有文件的string数组）
-func (cos *COS) uploadAllfiles(allFiles []string, recordfile string) (errRet error) {
+func (cos *COS) uploadAllfiles(configurename string, allFiles []string, recordfile string) (errRet error) {
 
-	recordData, errRet = getRecordData(recordfile)
+	recordData, errRet = getRecordData(configurename, recordfile)
 	if errRet != nil {
 		errRet = fmt.Errorf("获取记录失败%s", errRet.Error())
-		log.Error("%s\r\n", errRet.Error())
+		log.Error("%s:%s\r\n", configurename, errRet.Error())
 		return
 	}
 	if len(allFiles) > 5 {
-		cos.startwork(5, allFiles)
+		cos.startwork(configurename, 5, allFiles)
 	} else {
-		cos.startwork(len(allFiles), allFiles)
+		cos.startwork(configurename, len(allFiles), allFiles)
 	}
-	cosRecord := "/" + recordfile
-	cos.uploadFile(recordfile, cosRecord)
+	cosRecordName, errRet := cos.extractDir(configurename, recordfile)
+	if errRet != nil {
+		log.Error("%s:分析记录文件在cos的路径时出错\r\n", configurename)
+		return
+	}
+	errRet = cos.uploadFile(configurename, recordfile, cosRecordName)
+	if errRet != nil {
+		errRet = fmt.Errorf("上传文件%s失败", recordfile)
+	}
+
 	return
 }
 
 //总的上传所有文件（根据本地目录）
-func (cos *COS) uploadFromlocal(filedir string, selectSubdir bool, recordfile string) (errRet error) {
+func (cos *COS) uploadFromlocal(configurename string, filedir string, selectSubdir bool, recordfile string) (errRet error) {
 
-	files, err := matchPath(filedir, selectSubdir)
-	//fmt.Println(files)
+	files, err := matchPath(configurename, filedir, selectSubdir)
 	if err != nil {
-		errRet = fmt.Errorf("匹配失败%s", err.Error())
-		log.Error("%s\r\n", errRet.Error())
+		errRet = fmt.Errorf("%s", err.Error())
+		log.Error("配置文件%s:%s\r\n", configurename, errRet.Error())
 		return
 	}
 	if len(files) == 0 {
+		log.Warn("配置文件:%s匹配文件个数为0,或许路径下忘记添加*\r\n", configurename)
+		outlog.Warn("配置文件%s:匹配到文件个数为0,或许路径下忘记添加*\r\n", configurename)
 		return
 	}
-	errRet = cos.uploadAllfiles(files, recordfile)
+	errRet = cos.uploadAllfiles(configurename, files, recordfile)
 	if errRet != nil {
-		log.Error("%s\r\n", errRet.Error())
+		log.Error("配置文件%s:%s\r\n", configurename, errRet.Error())
 		return
 	}
 	return

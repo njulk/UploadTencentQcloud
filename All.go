@@ -5,33 +5,64 @@ import (
 )
 
 //主函数的入口，总的综合函数，根据配置文件设置变量并且上传到相应的cos空间
-func start() (errRet error) {
-	var configureName string = "config.ini"
+func start(configureName string) (errRet error) {
+	outlog.AddFilter("logger", l4g.FINE, l4g.NewConsoleLogWriter())
+	defer outlog.Close()
 	paras, errRet := getPara(configureName)
 	if errRet != nil {
-
-		log.Error("获取参数失败:%s\r\n", errRet.Error())
+		outlog.Error("配置文件%s:获取参数失败:%s\r\n", configureName, errRet.Error())
 		return
 	}
-	var objectcos *COS = new(COS)
-	objectcos.appid = paras["appid"]
-	objectcos.region = paras["region"]
-	objectcos.bucket = paras["bucket"]
-	objectcos.secretId = paras["secretId"]
-	objectcos.secretKey = paras["secretKey"]
-	recordTxtName = paras["recordTxtName"]
 	initLog(l4g.DEBUG, paras["logPath"])
 	defer log.Close()
+	var objectcos *COS = new(COS)
+	errRet = objectcos.setPara(configureName, paras)
+	if errRet != nil {
+		log.Error("配置文件%s:%s\r\n", configureName, errRet.Error())
+		outlog.Error("配置文件%s:%s\r\n", configureName, errRet.Error())
+		return
+	}
 	if paras["isRecurSub"] == "true" {
-		errRet = objectcos.uploadFromlocal(paras["localPath"], true, recordTxtName)
+		errRet = objectcos.uploadFromlocal(configureName, paras["localPath"], true, recordTxtName)
 		if errRet != nil {
-			log.Error("执行上传文件失败:%s\r\n", errRet.Error())
+			log.Error("配置文件%s:程序结束:%s\r\n", configureName, errRet.Error())
+			outlog.Error("配置文件%s:程序结束:%s，具体请查看Log日志\r\n", configureName, errRet.Error())
+			return
 		}
 	} else {
-		errRet = objectcos.uploadFromlocal(paras["localPath"], false, recordTxtName)
+		errRet = objectcos.uploadFromlocal(configureName, paras["localPath"], false, recordTxtName)
 		if errRet != nil {
-			log.Error("执行上传文件失败:%s\r\n", errRet.Error())
+			log.Error("配置文件%s:程序结束:%s\r\n", configureName, errRet.Error())
+			outlog.Error("配置文件%s:程序结束:%s，具体请查看Log日志\r\n", configureName, errRet.Error())
+			return
 		}
+	}
+	outlog.Info("配置文件%s:程序结束，上传完毕\r\n", configureName)
+	return
+}
+
+func (objectcos *COS) setPara(configureName string, paras map[string]string) (errRet error) {
+	objectcos.appid = paras["appid"]
+	id, key, errRet := getSecretKeyByAppId(configureName, objectcos.appid)
+	if errRet != nil {
+		log.Error("%s\r\n", errRet.Error())
+		return
+	}
+	objectcos.region = paras["region"]
+	objectcos.bucket = paras["bucket"]
+	objectcos.secretId = id
+	objectcos.secretKey = key
+	objectcos.uploadDir = paras["uploadDir"]
+	recordTxtName = paras["recordTxtName"]
+	localIp, errRet := getLocalIp(configureName)
+	if errRet != nil {
+		outlog.Error("配置文件%s:%s\r\n", configureName, errRet.Error())
+		return
+	}
+	errRet = objectcos.detectCosDir(configureName, localIp)
+	if errRet != nil {
+		outlog.Error("配置文件%s:%s\r\n", configureName, errRet.Error())
+		return
 	}
 	return
 }
