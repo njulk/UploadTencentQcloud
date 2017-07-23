@@ -83,6 +83,7 @@ func (cos *COS) uploadAllfiles(configurename string, allFiles []string, recordfi
 		log.Error("%s:分析记录文件在cos的路径时出错\r\n", configurename)
 		return
 	}
+	//resp, err := cos.smallFileupload(configurename, recordfile, cosRecordName)
 	errRet = cos.uploadFile(configurename, recordfile, cosRecordName)
 	if errRet != nil {
 		errRet = fmt.Errorf("上传文件%s失败", recordfile)

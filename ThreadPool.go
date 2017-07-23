@@ -8,9 +8,14 @@ import (
 func (cos *COS) worker(configurename string, jobs <-chan string, results chan<- string) {
 	for j := range jobs {
 		file := j
-		gzfile, errRet := Compress(configurename, file)
+		isselfGz, gzfileExist, gzfile, errRet := Compress(configurename, file)
 		if errRet != nil {
 			log.Error("配置文件%s:%s\r\n", configurename, errRet.Error())
+			results <- j
+			continue
+		}
+		if isselfGz == false && gzfileExist {
+			log.Warn("配置文件%s:%s\r\n", configurename, "此文件已经有压缩文件了")
 			results <- j
 			continue
 		}
@@ -28,10 +33,13 @@ func (cos *COS) worker(configurename string, jobs <-chan string, results chan<- 
 			continue
 		}
 		outlog.Info("配置文件%s:上传文件%s成功\r\n", configurename, file)
-		errRet = os.Remove(gzfile)
-		if errRet != nil {
-			log.Error("配置文件%s:删除本地文件%s出错\r\n", configurename, gzfile)
+		if gzfileExist == false && isselfGz == false {
+			errRet = os.Remove(gzfile)
+			if errRet != nil {
+				log.Error("配置文件%s:删除本地文件%s出错\r\n", configurename, gzfile)
+			}
 		}
+
 		mutex.Lock()
 		recordData, errRet = recordFile(configurename, file, filepath, recordData, recordTxtName)
 		if errRet != nil {

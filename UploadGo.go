@@ -100,6 +100,24 @@ func (cos *COS) smallFileupload(configurename string, localFilePath string, file
 		log.Error("配置文件:%s,%s\r\n", configurename, errRet.Error())
 		return
 	}
+
+	js, err := simplejson.NewJson(resp)
+	if err != nil {
+		errRet = fmt.Errorf("上传小文件%s时解析响应包json格式失败:%s", localFilePath, err.Error())
+		log.Error("配置文件:%s,%s\r\n", configurename, errRet.Error())
+		return
+	}
+	code, err := js.Get("code").Int()
+	if err != nil {
+		errRet = fmt.Errorf("上传小文件%s时解析响应包(code)失败:%s", localFilePath, err.Error())
+		log.Error("配置文件:%s,%s\r\n", configurename, errRet.Error())
+		return
+	}
+	if 0 != code {
+		errRet = fmt.Errorf("上传小文件%s时响应值显示失败：%s", localFilePath, string(resp))
+		log.Error("配置文件:%s,%s\r\n", configurename, errRet.Error())
+		return string(resp), errRet
+	}
 	Resbody = string(resp)
 	return
 }
@@ -265,6 +283,23 @@ func (cos *COS) upload_slice_finish(configurename, localFilePath, filepath, sess
 		log.Error("配置文件%s:%s\r\n", configurename, errRet.Error())
 		return
 	}
+	js, err := simplejson.NewJson(resp)
+	if err != nil {
+		errRet = fmt.Errorf("上传大文件%s解析响应包json格式失败:%s", localFilePath, err.Error())
+		log.Error("配置文件%s:%s\r\n", configurename, errRet.Error())
+		return
+	}
+	code, err := js.Get("code").Int()
+	if err != nil {
+		errRet = fmt.Errorf("上传大文件%s解析响应包获取code时候失败:%s", configurename, err.Error())
+		log.Error("配置文件%s:%s\r\n", configurename, errRet.Error())
+		return
+	}
+	if 0 != code {
+		errRet = fmt.Errorf("上传大文件%s时候响应包code不为0,上传失败:%s", localFilePath, string(resp))
+		log.Error("配置文件%s:%s\r\n", configurename, errRet.Error())
+		return
+	}
 	Resbody = string(resp)
 	return
 }
@@ -356,12 +391,30 @@ func (cos *COS) upload_slice_data(configurename, localFilePath string, filesize 
 			return false, errRet
 		}
 		contentType := bodyWriter.FormDataContentType()
-		_, errRet = httppost(configurename, url, sign, contentType, &buffer)
+		resp, errRet := httppost(configurename, url, sign, contentType, &buffer)
 		if errRet != nil {
 			errRet = fmt.Errorf("大文件%s:http发送大文件内容失败:%s", localFilePath, errRet.Error())
 			log.Error("配置文件%s:%s\r\n", configurename, errRet.Error())
 			return false, errRet
 		}
+		js, err := simplejson.NewJson(resp)
+		if err != nil {
+			errRet = fmt.Errorf("大文件%s上传时候响应包json解析失败:%s", localFilePath, err.Error())
+			log.Error("配置文件%s:%s\r\n", configurename, errRet.Error())
+			return false, errRet
+		}
+		code, err := js.Get("code").Int()
+		if err != nil {
+			errRet = fmt.Errorf("大文件%s上传过程中响应包json解析获取code值时候失败:%s", localFilePath, err.Error())
+			log.Error("配置文件%s:%s\r\n", configurename, errRet.Error())
+			return false, errRet
+		}
+		if 0 != code {
+			errRet = fmt.Errorf("大文件%s上传过程中响应包获得code不为0，上传失败:%s", localFilePath, string(resp))
+			log.Error("配置文件%s:%s\r\n", configurename, errRet.Error())
+			return false, errRet
+		}
+
 	}
 	return true, errRet
 }
@@ -370,18 +423,18 @@ func (cos *COS) upload_slice_data(configurename, localFilePath string, filesize 
 func (cos *COS) largeFileupload(configurename, localFilePath string, filepath string) (result string, errRet error) {
 	session, filesize, slicesize, err := cos.uploadinit(configurename, localFilePath, filepath)
 	if err != nil {
-		log.Error("%s\r\n", err.Error())
+		log.Error("配置文件%s:%s\r\n", configurename, err.Error())
 		errRet = fmt.Errorf("%s", err.Error())
 		return
 	}
 	_, errRet = cos.upload_slice_data(configurename, localFilePath, filesize, filepath, session, slicesize)
 	if errRet != nil {
-		log.Error("%s\r\n", errRet.Error())
+		log.Error("配置文件%s:%s\r\n", configurename, errRet.Error())
 		return
 	}
 	result, errRet = cos.upload_slice_finish(configurename, localFilePath, filepath, session, filesize)
 	if errRet != nil {
-		log.Error("%s\r\n", errRet.Error())
+		log.Error("配置文件%s,%s\r\n", configurename, errRet.Error())
 		return
 	}
 	return
@@ -399,13 +452,13 @@ func (cos *COS) uploadFile(configurename, localFilePath string, filePath string)
 	if filesize <= cosPostMaxSize {
 		_, errRet = cos.smallFileupload(configurename, localFilePath, filePath)
 		if errRet != nil {
-			log.Error("%s\r\n", errRet.Error())
+			log.Error("配置文件%s\r\n", errRet.Error())
 		}
 		return errRet
 	} else {
 		_, errRet = cos.largeFileupload(configurename, localFilePath, filePath)
 		if errRet != nil {
-			log.Error("%s\r\n", errRet.Error())
+			log.Error("配置文件%s\r\n", errRet.Error())
 		}
 		return errRet
 	}
