@@ -135,6 +135,7 @@ func detectUpdate(configname string, srcfile string, isRecord bool) (errRet erro
 			outlog.Error("配置文件%s:%s\r\n", configname, errRet.Error())
 			return
 		} else {
+			errRet = detectPermission(configname, srcfile)
 			return
 		}
 	}
@@ -154,5 +155,15 @@ func (cos *COS) detectCosDir(configurename string, localIp string) (errRet error
 		return
 	}
 	cos.uploadDir = cos.uploadDir + localIp
+	return
+}
+
+//检测文件是否可写
+
+func detectPermission(configname string, file string) (errRet error) {
+	_, errRet = os.OpenFile(file, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0660)
+	if errRet != nil {
+		outlog.Error("配置文件%s:以0660方式打开文件%s失败:%s\r\n", configname, file, errRet.Error())
+	}
 	return
 }
