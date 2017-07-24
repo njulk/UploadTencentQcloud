@@ -77,9 +77,14 @@ func (cos *COS) uploadAllfiles(configurename string, allFiles []string, recordfi
 	num := runtime.NumCPU()
 	num = num*2 + 1
 	if len(allFiles) > num {
-		cos.startwork(configurename, num, allFiles)
+		errRet = cos.startwork(configurename, num, allFiles)
 	} else {
-		cos.startwork(configurename, len(allFiles), allFiles)
+		errRet = cos.startwork(configurename, len(allFiles), allFiles)
+	}
+	if errRet != nil {
+		log.Error("配置文件%s:%s\r\n", configurename, errRet.Error())
+		outlog.Error("配置文件%s:%s\r\n", configurename, errRet.Error())
+		return
 	}
 	cosRecordName, errRet := cos.extractDir(configurename, recordfile)
 	if errRet != nil {
