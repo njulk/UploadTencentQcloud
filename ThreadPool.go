@@ -15,7 +15,7 @@ func (cos *COS) worker(configurename string, jobs <-chan string, results chan<- 
 			continue
 		}
 		if isselfGz == false && gzfileExist {
-			log.Warn("配置文件%s:%s\r\n", configurename, "此文件已经有压缩文件了")
+			log.Warn("配置文件%s:%s%s\r\n", configurename, file, "此文件已经有压缩文件了")
 			results <- j
 			continue
 		}
@@ -58,6 +58,7 @@ func (cos *COS) startwork(configurename string, num int, files []string) {
 	results := make(chan string, len(files))
 	for i := 0; i < num; i++ {
 		go cos.worker(configurename, jobs, results)
+
 	}
 	for _, v := range files {
 		jobs <- v

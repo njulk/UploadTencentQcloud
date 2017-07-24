@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"runtime"
 	"strings"
 )
 
@@ -73,8 +74,10 @@ func (cos *COS) uploadAllfiles(configurename string, allFiles []string, recordfi
 		log.Error("%s:%s\r\n", configurename, errRet.Error())
 		return
 	}
-	if len(allFiles) > 5 {
-		cos.startwork(configurename, 5, allFiles)
+	num := runtime.NumCPU()
+	num = num*2 + 1
+	if len(allFiles) > num {
+		cos.startwork(configurename, num, allFiles)
 	} else {
 		cos.startwork(configurename, len(allFiles), allFiles)
 	}
@@ -84,6 +87,7 @@ func (cos *COS) uploadAllfiles(configurename string, allFiles []string, recordfi
 		return
 	}
 	//resp, err := cos.smallFileupload(configurename, recordfile, cosRecordName)
+	//fmt.Println(recordfile, cosRecordName)
 	errRet = cos.uploadFile(configurename, recordfile, cosRecordName)
 	if errRet != nil {
 		errRet = fmt.Errorf("上传文件%s失败", recordfile)

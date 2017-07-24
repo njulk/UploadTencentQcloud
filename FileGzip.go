@@ -20,7 +20,7 @@ func isExist(configurename, file string) (existed bool, errRet error) {
 		} else {
 			existed = true
 			errRet = fmt.Errorf("文件%s存在但是不能读写:%s", file, errRet.Error())
-			log.Error("配置文件%s:%s\r\n", configurename, errRet.Error())
+			//log.Error("配置文件%s:%s\r\n", configurename, errRet.Error())
 			return
 		}
 	} else {
@@ -29,6 +29,7 @@ func isExist(configurename, file string) (existed bool, errRet error) {
 	}
 }
 
+//压缩功能,isselfGz表示此文件是否是gz压缩文件，gzfileExisted表示此文件在此目录是否有gz压缩的对应文件
 func Compress(configurename string, srcFile string) (isselfGz, gzfileExisted bool, destFile string, errRet error) {
 	if len(srcFile) >= 3 {
 		tail := srcFile[(len(srcFile) - 3):len(srcFile)]
