@@ -6,6 +6,16 @@ import (
 	"sync"
 )
 
+func removeGzFile(configurename string, isselfGz, gzfileExist bool, file string) (errRet error) {
+	if isselfGz == false && gzfileExist == false {
+		errRet = os.Remove(file)
+		if errRet != nil {
+			log.Error("配置文件%s:删除文件%s失败:%s\r\n", configurename, file, errRet.Error())
+		}
+	}
+	return
+}
+
 //线程做的事，具体执行压缩和上传文件
 func (cos *COS) worker(configurename string, jobs <-chan string, results chan error, waitn *sync.WaitGroup) {
 	defer waitn.Done()
@@ -26,6 +36,10 @@ func (cos *COS) worker(configurename string, jobs <-chan string, results chan er
 		if errRet != nil {
 			log.Error("配置文件%s:%s\r\n", configurename, errRet.Error())
 			results <- errRet
+			errRet = removeGzFile(configurename, isselfGz, gzfileExist, gzfile)
+			if errRet != nil {
+				results <- errRet
+			}
 			continue
 		}
 		errRet = cos.uploadFile(configurename, gzfile, filepath)
@@ -33,20 +47,22 @@ func (cos *COS) worker(configurename string, jobs <-chan string, results chan er
 			log.Error("配置文件%s:上传文件%s错误\r\n", configurename, file)
 			outlog.Error("配置文件%s:上传文件%s错误\r\n", configurename, file)
 			results <- errRet
+			errRet = removeGzFile(configurename, isselfGz, gzfileExist, gzfile)
+			if errRet != nil {
+				results <- errRet
+			}
 			continue
 		}
 		outlog.Info("配置文件%s:上传文件%s成功\r\n", configurename, file)
-		if gzfileExist == false && isselfGz == false {
-			errRet = os.Remove(gzfile)
-			if errRet != nil {
-				log.Error("配置文件%s:删除本地文件%s出错\r\n", configurename, gzfile)
-			}
+		errRet = removeGzFile(configurename, isselfGz, gzfileExist, gzfile)
+		if errRet != nil {
+			results <- errRet
 		}
-
 		mutex.Lock()
 		recordData, errRet = recordFile(configurename, file, filepath, recordData, recordTxtName)
 		if errRet != nil {
 			log.Error("配置文件%s:记录文件%s错误\r\n", configurename, file)
+			results <- errRet
 		}
 		mutex.Unlock()
 		results <- errRet
