@@ -19,10 +19,10 @@ func addDirTail(dir string) (result string) {
 }
 
 //根据路径匹配到相应要上传的文件
-func matchPath(configurename string, pattern string, selectsub bool) (matches []string, errRet error) {
+func (cos *COS) matchPath(configurename string, pattern string, selectsub bool) (matches []string, errRet error) {
 	files, errRet := filepath.Glob(pattern)
 	if errRet != nil {
-		log.Error("配置文件%s:Glob匹配出问题:%s\r\n", configurename, errRet.Error())
+		cos.log.Error("配置文件%s:Glob匹配出问题:%s\r\n", configurename, errRet.Error())
 		errRet = fmt.Errorf("Glob匹配样式%s出问题:%s", pattern, errRet.Error())
 		return nil, errRet
 	}
@@ -33,7 +33,7 @@ func matchPath(configurename string, pattern string, selectsub bool) (matches []
 	for i := 0; i < len(files); i++ {
 		fi, err := os.Stat(files[i])
 		if err != nil {
-			log.Error("配置文件%s:查询文件%s信息出错:%s\r\n", configurename, files[i], err.Error())
+			cos.log.Error("配置文件%s:查询文件%s信息出错:%s\r\n", configurename, files[i], err.Error())
 			errRet = fmt.Errorf("匹配文件%s时查询文件信息出错:%s", files[i], err.Error())
 			return
 		}
@@ -43,9 +43,9 @@ func matchPath(configurename string, pattern string, selectsub bool) (matches []
 
 		if selectsub {
 			if fi.IsDir() {
-				subfiles, _, err := ListDir(configurename, files[i], selectsub)
+				subfiles, err := cos.getDir(configurename, files[i], selectsub)
 				if err != nil {
-					log.Error("配置文件%s:%s\r\n", configurename, err.Error())
+					cos.log.Error("配置文件%s:%s\r\n", configurename, err.Error())
 					errRet = fmt.Errorf("%s", err.Error())
 					return
 				} else {

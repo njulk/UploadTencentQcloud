@@ -6,11 +6,11 @@ import (
 	"sync"
 )
 
-func removeGzFile(configurename string, isselfGz, gzfileExist bool, file string) (errRet error) {
+func (cos *COS) removeGzFile(configurename string, isselfGz, gzfileExist bool, file string) (errRet error) {
 	if isselfGz == false && gzfileExist == false {
 		errRet = os.Remove(file)
 		if errRet != nil {
-			log.Error("配置文件%s:删除文件%s失败:%s\r\n", configurename, file, errRet.Error())
+			cos.log.Error("配置文件%s:删除文件%s失败:%s\r\n", configurename, file, errRet.Error())
 		}
 	}
 	return
@@ -21,22 +21,22 @@ func (cos *COS) worker(configurename string, jobs <-chan string, results chan er
 	defer waitn.Done()
 	for j := range jobs {
 		file := j
-		isselfGz, gzfileExist, gzfile, errRet := Compress(configurename, file)
+		isselfGz, gzfileExist, gzfile, errRet := cos.Compress(configurename, file)
 		if errRet != nil {
-			log.Error("配置文件%s:%s\r\n", configurename, errRet.Error())
+			cos.log.Error("配置文件%s:%s\r\n", configurename, errRet.Error())
 			results <- errRet
 			continue
 		}
 		if isselfGz == false && gzfileExist {
-			log.Warn("配置文件%s:%s%s\r\n", configurename, file, "此文件已经有压缩文件了")
+			cos.log.Warn("配置文件%s:%s%s\r\n", configurename, file, "此文件已经有压缩文件了")
 			results <- errRet
 			continue
 		}
 		filepath, errRet := cos.extractDir(configurename, gzfile)
 		if errRet != nil {
-			log.Error("配置文件%s:%s\r\n", configurename, errRet.Error())
+			cos.log.Error("配置文件%s:%s\r\n", configurename, errRet.Error())
 			results <- errRet
-			errRet = removeGzFile(configurename, isselfGz, gzfileExist, gzfile)
+			errRet = cos.removeGzFile(configurename, isselfGz, gzfileExist, gzfile)
 			if errRet != nil {
 				results <- errRet
 			}
@@ -44,27 +44,27 @@ func (cos *COS) worker(configurename string, jobs <-chan string, results chan er
 		}
 		errRet = cos.uploadFile(configurename, gzfile, filepath)
 		if errRet != nil {
-			log.Error("配置文件%s:上传文件%s错误\r\n", configurename, file)
-			outlog.Error("配置文件%s:上传文件%s错误\r\n", configurename, file)
+			cos.log.Error("配置文件%s:上传文件%s错误\r\n", configurename, file)
+			cos.outlog.Error("配置文件%s:上传文件%s错误\r\n", configurename, file)
 			results <- errRet
-			errRet = removeGzFile(configurename, isselfGz, gzfileExist, gzfile)
+			errRet = cos.removeGzFile(configurename, isselfGz, gzfileExist, gzfile)
 			if errRet != nil {
 				results <- errRet
 			}
 			continue
 		}
-		outlog.Info("配置文件%s:上传文件%s成功\r\n", configurename, file)
-		errRet = removeGzFile(configurename, isselfGz, gzfileExist, gzfile)
+		cos.outlog.Info("配置文件%s:上传文件%s成功\r\n", configurename, file)
+		errRet = cos.removeGzFile(configurename, isselfGz, gzfileExist, gzfile)
 		if errRet != nil {
 			results <- errRet
 		}
-		mutex.Lock()
-		recordData, errRet = recordFile(configurename, file, filepath, recordData, recordTxtName)
+		cos.mutex.Lock()
+		errRet = cos.recordFile(configurename, file, filepath)
 		if errRet != nil {
-			log.Error("配置文件%s:记录文件%s错误\r\n", configurename, file)
+			cos.log.Error("配置文件%s:记录文件%s错误\r\n", configurename, file)
 			results <- errRet
 		}
-		mutex.Unlock()
+		cos.mutex.Unlock()
 		results <- errRet
 	}
 	return
@@ -95,7 +95,7 @@ func (cos *COS) startwork(configurename string, num int, files []string) (errRet
 		}
 	}
 	if errRet != nil {
-		outlog.Error("配置文件%s:startwork中出现问题，具体查看日志\r\n", configurename)
+		cos.outlog.Error("配置文件%s:startwork中出现问题，具体查看日志\r\n", configurename)
 	}
 	return
 

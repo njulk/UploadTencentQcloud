@@ -30,7 +30,7 @@ func isExist(configurename, file string) (existed bool, errRet error) {
 }
 
 //压缩功能,isselfGz表示此文件是否是gz压缩文件，gzfileExisted表示此文件在此目录是否有gz压缩的对应文件
-func Compress(configurename string, srcFile string) (isselfGz, gzfileExisted bool, destFile string, errRet error) {
+func (cos *COS) Compress(configurename string, srcFile string) (isselfGz, gzfileExisted bool, destFile string, errRet error) {
 	if len(srcFile) >= 3 {
 		tail := srcFile[(len(srcFile) - 3):len(srcFile)]
 		if strings.EqualFold(tail, ".gz") {
@@ -45,13 +45,13 @@ func Compress(configurename string, srcFile string) (isselfGz, gzfileExisted boo
 		return false, true, destFile, nil
 	}
 	if existed == true && errRet != nil {
-		log.Error("配置文件%s:%s\r\n", configurename, errRet.Error())
+		cos.log.Error("配置文件%s:%s\r\n", configurename, errRet.Error())
 		return false, true, destFile, errRet
 	}
 
 	gzFile, err := os.Create(destFile)
 	if err != nil {
-		log.Error("配置文件%s:压缩时创建目标文件%s失败:%s\r\n", configurename, destFile, err.Error())
+		cos.log.Error("配置文件%s:压缩时创建目标文件%s失败:%s\r\n", configurename, destFile, err.Error())
 		err = fmt.Errorf("压缩时创建目标文件%s失败:%s", destFile, err.Error())
 		return false, false, destFile, err
 	}
@@ -60,14 +60,14 @@ func Compress(configurename string, srcFile string) (isselfGz, gzfileExisted boo
 	defer gzWriter.Close()
 	rdFile, err := os.Open(srcFile)
 	if err != nil {
-		log.Error("配置文件%s:压缩时打开源文件%s失败:%s\r\n", configurename, srcFile, err.Error())
+		cos.log.Error("配置文件%s:压缩时打开源文件%s失败:%s\r\n", configurename, srcFile, err.Error())
 		err = fmt.Errorf("压缩时打开源文件%s失败:%s\r\n", srcFile, err.Error())
 		return false, false, destFile, err
 	}
 	defer rdFile.Close()
 	fileStat, err := os.Stat(srcFile)
 	if err != nil {
-		log.Error("配置文件%s:查看源文件%s的stat失败:%s\r\n", configurename, srcFile, err.Error())
+		cos.log.Error("配置文件%s:查看源文件%s的stat失败:%s\r\n", configurename, srcFile, err.Error())
 		err = fmt.Errorf("查看源文件%s的stat失败:%s\r\n", srcFile, err.Error())
 		return false, false, destFile, err
 	}
@@ -78,20 +78,20 @@ func Compress(configurename string, srcFile string) (isselfGz, gzfileExisted boo
 	for i := 0; i < mslice_count; i++ {
 		readline, err := rdFile.ReadAt(readData, offset)
 		if err != io.EOF && err != nil {
-			log.Error("配置文件%s:压缩时读取源文件%s过程中出错:%s\r\n", configurename, srcFile, err.Error())
+			cos.log.Error("配置文件%s:压缩时读取源文件%s过程中出错:%s\r\n", configurename, srcFile, err.Error())
 			err = fmt.Errorf("压缩时读取源文件%s过程中出错:%s\r\n", srcFile, err.Error())
 			return false, false, destFile, err
 		}
 		_, err = gzWriter.Write(readData[0:readline])
 		if err != nil {
-			log.Error("配置文件%s:压缩时写入压缩文件%s出错:%s\r\n", configurename, destFile, err.Error())
+			cos.log.Error("配置文件%s:压缩时写入压缩文件%s出错:%s\r\n", configurename, destFile, err.Error())
 			err = fmt.Errorf("压缩时写入压缩文件%s出错:%s", destFile, err.Error())
 			return false, false, destFile, err
 		}
 		err = gzWriter.Flush()
 		if err != nil {
 			err = fmt.Errorf("压缩时写入压缩文件%s后flush出错:%s", destFile, err.Error())
-			log.Error("配置文件%s:%s\r\n", configurename, err.Error())
+			cos.log.Error("配置文件%s:%s\r\n", configurename, err.Error())
 			return false, false, destFile, err
 		}
 		offset += (int64)(readline)
