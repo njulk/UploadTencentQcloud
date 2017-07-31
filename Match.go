@@ -22,7 +22,7 @@ func addDirTail(dir string) (result string) {
 func (cos *COS) matchPath(configurename string, pattern string, selectsub bool) (matches []string, errRet error) {
 	files, errRet := filepath.Glob(pattern)
 	if errRet != nil {
-		cos.log.Error("配置文件%s:Glob匹配出问题:%s\r\n", configurename, errRet.Error())
+		cos.log.Error("配置文件%s:Glob匹配出问题:%s", configurename, errRet.Error())
 		errRet = fmt.Errorf("Glob匹配样式%s出问题:%s", pattern, errRet.Error())
 		return nil, errRet
 	}
@@ -33,7 +33,7 @@ func (cos *COS) matchPath(configurename string, pattern string, selectsub bool) 
 	for i := 0; i < len(files); i++ {
 		fi, err := os.Stat(files[i])
 		if err != nil {
-			cos.log.Error("配置文件%s:查询文件%s信息出错:%s\r\n", configurename, files[i], err.Error())
+			cos.log.Error("配置文件%s:查询文件%s信息出错:%s", configurename, files[i], err.Error())
 			errRet = fmt.Errorf("匹配文件%s时查询文件信息出错:%s", files[i], err.Error())
 			return
 		}
@@ -45,7 +45,7 @@ func (cos *COS) matchPath(configurename string, pattern string, selectsub bool) 
 			if fi.IsDir() {
 				subfiles, err := cos.getDir(configurename, files[i], selectsub)
 				if err != nil {
-					cos.log.Error("配置文件%s:%s\r\n", configurename, err.Error())
+					cos.log.Error("配置文件%s:%s", configurename, err.Error())
 					errRet = fmt.Errorf("%s", err.Error())
 					return
 				} else {

@@ -31,11 +31,13 @@ func (cos *COS) getPara(configName string) (paras map[string]string, errRet erro
 		"localPath",
 		"isRecurSub",
 		"recordTxtName",
-		"logPath"}
+		"logPath",
+		"secretId",
+		"secretKey"}
 	cfg, err := config.ReadDefault(configName)
 	if err != nil {
-		errRet = fmt.Errorf("读取配置文件错误:%s,配置文件为:%s", err.Error(), configName)
-		cos.outlog.Error("%s\r\n", errRet.Error())
+		errRet = fmt.Errorf("读取配置文件错误:%s", err.Error())
+		cos.outlog.Error("配置文件%s:%s\r\n", configName, errRet.Error())
 		return
 	}
 	for _, sectionName := range []string{"COS", "DIR"} {
@@ -47,25 +49,25 @@ func (cos *COS) getPara(configName string) (paras map[string]string, errRet erro
 						//fmt.Println(options)
 					} else {
 						errRet = fmt.Errorf("获取%s目录下参数:%s,错误:%s,配置文件为:%s", sectionName, v, err.Error(), configName)
-						cos.outlog.Error("%s\r\n", errRet.Error())
+						cos.outlog.Error("%s", errRet.Error())
 						return
 					}
 				}
 			} else {
 				errRet = fmt.Errorf("获取配置中的%s目录错误,错误:%s,配置文件为:%s", sectionName, err.Error(), configName)
-				cos.outlog.Error("%s\r\n", errRet.Error())
+				cos.outlog.Error("%s", errRet.Error())
 				return
 			}
 		} else {
 			errRet = fmt.Errorf("配置中未配置%s项目,配置文件为:%s", sectionName, configName)
-			cos.outlog.Error("%s\r\n", errRet.Error())
+			cos.outlog.Error("%s", errRet.Error())
 			return
 		}
 	}
 	for _, fi := range parasRequire {
 		if _, ok := paras[fi]; !ok {
 			errRet = fmt.Errorf("配置文件中不存在配置:%s,配置文件为:%s", fi, configName)
-			cos.outlog.Error("%s\r\n", errRet.Error())
+			cos.outlog.Error("%s", errRet.Error())
 			return
 		} else {
 			if fi == "localPath" || fi == "recordTxtName" || fi == "logPath" {
@@ -77,9 +79,9 @@ func (cos *COS) getPara(configName string) (paras map[string]string, errRet erro
 		}
 	}
 
-	if paras["appid"] == "" || paras["bucket"] == "" || paras["region"] == "" {
+	if paras["appid"] == "" || paras["bucket"] == "" || paras["region"] == "" || paras["secretId"] == "" || paras["secretKey"] == "" {
 		errRet = fmt.Errorf("appid,bucket,region参数有缺失")
-		cos.outlog.Error("%s\r\n", errRet.Error())
+		cos.outlog.Error("%s", errRet.Error())
 		return
 	}
 	if paras["isRecurSub"] != "false" {
@@ -100,7 +102,7 @@ func (cos *COS) getPara(configName string) (paras map[string]string, errRet erro
 func (cos *COS) detectUpdate(configname string, srcfile string, isRecord bool) (errRet error) {
 	if srcfile == "" {
 		errRet = fmt.Errorf("配置里记录文件或日志文件不能为空")
-		cos.outlog.Error("配置文件%s:%s\r\n", configname, errRet.Error())
+		cos.outlog.Error("配置文件%s:%s", configname, errRet.Error())
 		return
 	}
 	fi, err := os.Stat(srcfile)
@@ -109,14 +111,14 @@ func (cos *COS) detectUpdate(configname string, srcfile string, isRecord bool) (
 			fc, errCreate := os.Create(srcfile)
 			if errCreate != nil {
 				errRet = fmt.Errorf("创建文件失败,文件:%s,错误:%s", srcfile, errCreate.Error())
-				cos.outlog.Error("配置文件%s:%s\r\n", configname, errRet.Error())
+				cos.outlog.Error("配置文件%s:%s", configname, errRet.Error())
 				return
 			} else {
 				defer fc.Close()
 				if isRecord {
 					_, errRet = fc.WriteString("localfile" + "                       " + "cosfile" + "\r\n")
 					if errRet != nil {
-						cos.log.Error("%s:记录文件%s记录数据时出错:%s\r\n", configname, srcfile, errRet.Error())
+						cos.log.Error("%s:记录文件%s记录数据时出错:%s", configname, srcfile, errRet.Error())
 						errRet = fmt.Errorf("记录文件%s记录数据时出错:%s", srcfile, errRet.Error())
 						return errRet
 					}
@@ -126,13 +128,13 @@ func (cos *COS) detectUpdate(configname string, srcfile string, isRecord bool) (
 			}
 		} else {
 			errRet = fmt.Errorf("读取文件信息失败,文件:%s,错误:%s", srcfile, err.Error())
-			cos.outlog.Error("配置文件%s:%s\r\n", configname, errRet.Error())
+			cos.outlog.Error("配置文件%s:%s", configname, errRet.Error())
 			return
 		}
 	} else {
 		if fi.IsDir() {
 			errRet = fmt.Errorf("文件:%s配置错误,不能是目录", srcfile)
-			cos.outlog.Error("配置文件%s:%s\r\n", configname, errRet.Error())
+			cos.outlog.Error("配置文件%s:%s", configname, errRet.Error())
 			return
 		} else {
 			errRet = cos.detectPermission(configname, srcfile)
@@ -146,12 +148,12 @@ func (cos *COS) detectUpdate(configname string, srcfile string, isRecord bool) (
 func (cos *COS) detectCosDir(configurename string, localIp string) (errRet error) {
 	if cos.uploadDir[(len(cos.uploadDir)-1):len(cos.uploadDir)] != "/" {
 		errRet = fmt.Errorf("配置文件里的uploadDir格式不对，最右边缺少/")
-		cos.log.Error("配置文件%s:%s\r\n", configurename, errRet.Error())
+		cos.log.Error("配置文件%s:%s", configurename, errRet.Error())
 		return
 	}
 	if cos.uploadDir[0:1] != "/" {
 		errRet = fmt.Errorf("配置文件里的uploadDir格式不对，最左边缺少/")
-		cos.log.Error("配置文件%s:%s\r\n", configurename, errRet.Error())
+		cos.log.Error("配置文件%s:%s", configurename, errRet.Error())
 		return
 	}
 	cos.uploadDir = cos.uploadDir + localIp
@@ -163,7 +165,7 @@ func (cos *COS) detectCosDir(configurename string, localIp string) (errRet error
 func (cos *COS) detectPermission(configname string, file string) (errRet error) {
 	_, errRet = os.OpenFile(file, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0660)
 	if errRet != nil {
-		cos.outlog.Error("配置文件%s:以0660方式打开文件%s失败:%s\r\n", configname, file, errRet.Error())
+		cos.outlog.Error("配置文件%s:以0660方式打开文件%s失败:%s", configname, file, errRet.Error())
 	}
 	return
 }

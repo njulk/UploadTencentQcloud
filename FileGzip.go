@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-//判断是否存在此文件
+//判断系统是否存在此文件
 func isExist(configurename, file string) (existed bool, errRet error) {
 	_, errRet = os.Stat(file)
 	if errRet != nil {

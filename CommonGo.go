@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"math/rand"
+	"net"
 	"strings"
 	"sync"
 	"time"
@@ -40,11 +41,21 @@ type SecretKey struct {
 	secretKey string
 }
 
+type localInfo struct {
+	log           l4g.Logger
+	outlog        l4g.Logger
+	mutex         sync.RWMutex
+	recordData    map[string]string
+	recordTxtName string
+}
+
 /*COS对象*/
 type COS struct {
 	SecretKey
-	region string
-	bucket string
+	localInfo
+	region    string
+	bucket    string
+	uploadDir string
 }
 
 /*COS上面的文件信息*/
@@ -60,11 +71,31 @@ type COSFile struct {
 var cosCgiKey string = "f9a3b98f20e1a0a7ca97ce7319b717cb"
 var cosCgiFrom string = "cdn"
 var cosSecretKeyUrl string = "http://cosapi4.qcloud.com/api.php"
-var recordData map[string]string = make(map[string]string)
-var log l4g.Logger = make(l4g.Logger)
 
-var recordTxtName string
-var mutex sync.Mutex
+var logMutex sync.Mutex
+var configMutex sync.Mutex
+var configSize int
+
+//初始化结构体
+func (cos *COS) initCOS() {
+	cos.log = make(l4g.Logger)
+	cos.outlog = make(l4g.Logger)
+	cos.recordData = make(map[string]string)
+}
+
+//为屏幕打印日志添加滤波器
+func addFilter(configname string, cos *COS) {
+	logMutex.Lock()
+	cos.outlog.AddFilter(configname, l4g.FINE, l4g.NewConsoleLogWriter())
+	logMutex.Unlock()
+}
+
+//为文本打印日志添加滤波器
+func addLogFilter(configname, logpath string, cos *COS) {
+	logMutex.Lock()
+	cos.log.AddFilter(configname, l4g.FINE, l4g.NewFileLogWriter(logpath, false))
+	logMutex.Unlock()
+}
 
 //产生基本的url
 func (cos *COS) generateurl(filepath string) string {
@@ -73,7 +104,7 @@ func (cos *COS) generateurl(filepath string) string {
 }
 
 //创造签名
-func (cos *COS) createSignature(filePath string, singleUse bool) (sign string, err error) {
+func (cos *COS) createSignature(configurename string, filePath string, singleUse bool) (sign string, err error) {
 	var cur = time.Now().Unix()
 	var expiration = cur + 3600
 	if singleUse {
@@ -86,7 +117,8 @@ func (cos *COS) createSignature(filePath string, singleUse bool) (sign string, e
 	mac := hmac.New(sha1.New, []byte(cos.secretKey))
 	_, err = mac.Write([]byte(result))
 	if err != nil {
-		log.Error("签名写入出错:%s\r\n", err.Error())
+		cos.log.Error("配置文件%s:cos文件%s签名写入出错:%s", configurename, filePath, err.Error())
+		err = fmt.Errorf("cos文件%s签名写入出错:%s", filePath, err.Error())
 		return
 	}
 	tmp := mac.Sum(nil)
@@ -94,7 +126,29 @@ func (cos *COS) createSignature(filePath string, singleUse bool) (sign string, e
 	return sign, err
 }
 
-//初始化log环境
-func initLog(lv l4g.Level, logPath string) {
-	log.AddFilter("file", lv, l4g.NewFileLogWriter(logPath, false))
+//获取ip地址
+func (cos *COS) getLocalIp(configurename string) (Ip string, errRet error) {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		errRet = fmt.Errorf("获取本机IP错误:%s", err.Error())
+		cos.log.Error("配置文件%s:%s", configurename, errRet.Error())
+		return
+	} else {
+		if len(addrs) == 0 {
+			errRet = fmt.Errorf("获取到0个IP")
+			cos.log.Error("配置文件%s:%s", configurename, errRet.Error())
+			return
+		} else {
+			for _, address := range addrs {
+				if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+					if ipnet.IP.To4() != nil {
+						return ipnet.IP.String(), errRet
+					}
+				}
+			}
+			errRet = fmt.Errorf("没有合适的IP")
+			cos.log.Error("配置文件%s:%s", configurename, errRet.Error())
+			return
+		}
+	}
 }
